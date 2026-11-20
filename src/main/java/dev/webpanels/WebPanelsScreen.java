@@ -20,8 +20,14 @@ public final class WebPanelsScreen extends Screen {
     private TextFieldWidget address;
     private ButtonWidget go;
     private int browserX, browserY, browserW, browserH;
+    private double scale = 1.0;
 
     public WebPanelsScreen() { super(Text.literal("WebPanels")); }
+
+    private int pixelW() { return Math.max(1, (int) Math.round(browserW * scale)); }
+    private int pixelH() { return Math.max(1, (int) Math.round(browserH * scale)); }
+    private int bx(double mouseX) { return (int) Math.round((mouseX - browserX) * scale); }
+    private int by(double mouseY) { return (int) Math.round((mouseY - browserY) * scale); }
 
     @Override
     protected void init() {
@@ -31,6 +37,7 @@ public final class WebPanelsScreen extends Screen {
         browserY = 66;
         browserW = this.width - margin * 2;
         browserH = this.height - browserY - margin;
+        scale = this.client.getWindow().getScaleFactor();
 
         address = new TextFieldWidget(textRenderer, margin, barY, this.width - 118, 20, Text.literal("Address"));
         address.setMaxLength(2048);
@@ -40,9 +47,9 @@ public final class WebPanelsScreen extends Screen {
         addDrawableChild(go);
 
         if (browser == null) {
-            browser = WebPanelsClient.createBrowser(address.getText(), browserW, browserH);
+            browser = WebPanelsClient.createBrowser(address.getText(), pixelW(), pixelH());
         }
-        if (browser != null) browser.resize(browserW, browserH);
+        if (browser != null) browser.resize(pixelW(), pixelH());
     }
 
     private void navigate() {
@@ -94,10 +101,10 @@ public final class WebPanelsScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (inBrowser(mouseX, mouseY)) {
             address.setFocused(false);
-            int bx = (int) mouseX - browserX, by = (int) mouseY - browserY;
-            browser.sendMouseMove(bx, by);
-            browser.sendMousePress(bx, by, button);
-            browser.sendMouseRelease(bx, by, button);
+            int x = bx(mouseX), y = by(mouseY);
+            browser.sendMouseMove(x, y);
+            browser.sendMousePress(x, y, button);
+            browser.sendMouseRelease(x, y, button);
             browser.setFocus(true);
             return true;
         }
@@ -107,7 +114,7 @@ public final class WebPanelsScreen extends Screen {
     @Override
     public void mouseMoved(double mouseX, double mouseY) {
         if (inBrowser(mouseX, mouseY)) {
-            browser.sendMouseMove((int) mouseX - browserX, (int) mouseY - browserY);
+            browser.sendMouseMove(bx(mouseX), by(mouseY));
         }
         super.mouseMoved(mouseX, mouseY);
     }
@@ -115,7 +122,7 @@ public final class WebPanelsScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (inBrowser(mouseX, mouseY)) {
-            browser.sendMouseWheel((int) mouseX - browserX, (int) mouseY - browserY, verticalAmount, 0);
+            browser.sendMouseWheel(bx(mouseX), by(mouseY), verticalAmount, 0);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
