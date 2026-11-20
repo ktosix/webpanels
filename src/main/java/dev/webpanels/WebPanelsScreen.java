@@ -1,10 +1,17 @@
 package dev.webpanels;
 
 import com.cinemamod.mcef.MCEFBrowser;
+import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.client.gl.ShaderProgramKeys;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.render.VertexFormats;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
@@ -32,7 +39,9 @@ public final class WebPanelsScreen extends Screen {
         go = ButtonWidget.builder(Text.literal("Go"), b -> navigate()).dimensions(this.width - 92, barY, 74, 20).build();
         addDrawableChild(go);
 
-        browser = WebPanelsClient.createBrowser(address.getText(), browserW, browserH);
+        if (browser == null) {
+            browser = WebPanelsClient.createBrowser(address.getText(), browserW, browserH);
+        }
         if (browser != null) browser.resize(browserW, browserH);
     }
 
@@ -45,50 +54,68 @@ public final class WebPanelsScreen extends Screen {
         browser.loadURL(value);
     }
 
+    private boolean textureReady() {
+        return browser != null && browser.getRenderer() != null && browser.getRenderer().getTextureID() != 0;
+    }
+
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         context.fill(0, 0, width, height, 0xE810121A);
         context.fill(12, 12, width - 12, height - 12, 0xFF202633);
         context.drawTextWithShadow(textRenderer, "WEBPANELS", 18, 16, 0xFF79CFFF);
-        if (browser != null && browser.isTextureReady()) {
-            context.drawTexture(net.minecraft.client.render.RenderLayer::getGuiTextured,
-                    browser.getTextureIdentifier(), browserX, browserY,
-                    0.0f, 0.0f, browserW, browserH, browserW, browserH);
+        if (textureReady()) {
+            float x1 = browserX, y1 = browserY, x2 = browserX + browserW, y2 = browserY + browserH;
+            RenderSystem.disableDepthTest();
+            RenderSystem.setShader(ShaderProgramKeys.POSITION_TEX_COLOR);
+            RenderSystem.setShaderTexture(0, browser.getRenderer().getTextureID());
+            BufferBuilder buffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+            buffer.vertex(x1, y2, 0.0f).texture(0.0f, 1.0f).color(255, 255, 255, 255);
+            buffer.vertex(x2, y2, 0.0f).texture(1.0f, 1.0f).color(255, 255, 255, 255);
+            buffer.vertex(x2, y1, 0.0f).texture(1.0f, 0.0f).color(255, 255, 255, 255);
+            buffer.vertex(x1, y1, 0.0f).texture(0.0f, 0.0f).color(255, 255, 255, 255);
+            BufferRenderer.drawWithGlobalProgram(buffer.end());
+            RenderSystem.setShaderTexture(0, 0);
+            RenderSystem.enableDepthTest();
         } else {
             context.fill(browserX, browserY, browserX + browserW, browserY + browserH, 0xFF11151D);
             context.drawCenteredTextWithShadow(textRenderer,
-                    Text.literal(browser == null ? "MCEF browser is not ready" : "Loading browser…"),
+                    Text.literal(browser == null ? "MCEF browser is not ready" : "Loading browser..."),
                     width / 2, browserY + browserH / 2, 0xFFFFFFFF);
         }
         super.render(context, mouseX, mouseY, delta);
     }
 
+    private boolean inBrowser(double mouseX, double mouseY) {
+        return browser != null && mouseX >= browserX && mouseX < browserX + browserW
+                && mouseY >= browserY && mouseY < browserY + browserH;
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (browser != null && mouseX >= browserX && mouseX < browserX + browserW
-                && mouseY >= browserY && mouseY < browserY + browserH) {
-            browser.sendMouseMove((int) mouseX - browserX, (int) mouseY - browserY);
-            browser.sendMousePress((int) mouseX - browserX, (int) mouseY - browserY, button);
-            browser.sendMouseRelease((int) mouseX - browserX, (int) mouseY - browserY, button);
+        if (inBrowser(mouseX, mouseY)) {
+            address.setFocused(false);
+            int bx = (int) mouseX - browserX, by = (int) mouseY - browserY;
+            browser.sendMouseMove(bx, by);
+            browser.sendMousePress(bx, by, button);
+            browser.sendMouseRelease(bx, by, button);
+            browser.setFocus(true);
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public boolean mouseMoved(double mouseX, double mouseY) {
-        if (browser != null && mouseX >= browserX && mouseX < browserX + browserW
-                && mouseY >= browserY && mouseY < browserY + browserH) {
+    public void mouseMoved(double mouseX, double mouseY) {
+        if (inBrowser(mouseX, mouseY)) {
             browser.sendMouseMove((int) mouseX - browserX, (int) mouseY - browserY);
         }
-        return super.mouseMoved(mouseX, mouseY);
+        super.mouseMoved(mouseX, mouseY);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (browser != null && mouseX >= browserX && mouseX < browserX + browserW
-                && mouseY >= browserY && mouseY < browserY + browserH) {
-            browser.sendMouseWheel((int) mouseX - browserX, (int) mouseY - browserY, verticalAmount * 120.0, 0);
+        if (inBrowser(mouseX, mouseY)) {
+            browser.sendMouseWheel((int) mouseX - browserX, (int) mouseY - browserY, verticalAmount, 0);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -96,6 +123,7 @@ public final class WebPanelsScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) { close(); return true; }
         if (keyCode == GLFW.GLFW_KEY_ENTER && address.isFocused()) { navigate(); return true; }
         if (browser != null && !address.isFocused()) {
             browser.sendKeyPress(keyCode, scanCode, modifiers);
@@ -106,7 +134,11 @@ public final class WebPanelsScreen extends Screen {
 
     @Override
     public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
-        if (browser != null && !address.isFocused()) browser.sendKeyRelease(keyCode, scanCode, modifiers);
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) return true;
+        if (browser != null && !address.isFocused()) {
+            browser.sendKeyRelease(keyCode, scanCode, modifiers);
+            return true;
+        }
         return super.keyReleased(keyCode, scanCode, modifiers);
     }
 
