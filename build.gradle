@@ -8,6 +8,9 @@ group = project.maven_group
 
 base { archivesName = project.archives_base_name }
 
+repositories {
+    maven { url = uri('https://mcef-download.cinemamod.com/repositories/releases') }
+}
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
