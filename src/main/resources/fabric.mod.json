@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "webpanels",
+  "version": "${version}",
+  "name": "WebPanels Standalone",
+  "description": "Standalone browser panels for Minecraft 1.21.4 Fabric.",
+  "environment": "client",
+  "entrypoints": { "client": ["dev.webpanels.WebPanelsClient"] },
+  "depends": {
+    "fabricloader": ">=0.16.10",
+    "fabric-api": "*",
+    "minecraft": "1.21.4",
+    "mcef": "*",
+    "java": ">=21"
+  }
+}
